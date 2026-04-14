@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Travel Itinerary Generator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- =========================================================
+       HEADER
+  ========================================================== -->
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-icon">✈</span>
+        <span class="logo-text">TravelAgent AI</span>
+      </div>
+      <p class="tagline">Powered by Claude · Agentic AI Learning Project</p>
+    </div>
+  </header>
+
+  <main class="main-content">
+
+    <!-- =========================================================
+         FORM PANEL — Travel preferences input
+    ========================================================== -->
+    <section id="form-panel" class="panel form-panel">
+      <div class="panel-header">
+        <h2>Plan Your Trip</h2>
+        <p>Tell us about your dream journey and our AI agent will build a personalized itinerary.</p>
+      </div>
+
+      <form id="travel-form" novalidate>
+
+        <!-- Destination -->
+        <div class="form-group">
+          <label for="destination">Destination <span class="required">*</span></label>
+          <input
+            type="text"
+            id="destination"
+            name="destination"
+            placeholder="e.g. Tokyo, Japan"
+            required
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Dates row -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="departureDate">Departure Date <span class="required">*</span></label>
+            <input type="date" id="departureDate" name="departureDate" required />
+          </div>
+          <div class="form-group">
+            <label for="returnDate">Return Date <span class="required">*</span></label>
+            <input type="date" id="returnDate" name="returnDate" required />
+          </div>
+        </div>
+
+        <!-- Travelers & Group type row -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="travelers">Number of Travelers</label>
+            <select id="travelers" name="travelers">
+              <option value="1">1 person</option>
+              <option value="2" selected>2 people</option>
+              <option value="3">3 people</option>
+              <option value="4">4 people</option>
+              <option value="5+">5+ people</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="groupType">Travel Group</label>
+            <select id="groupType" name="groupType">
+              <option value="solo">Solo traveler</option>
+              <option value="couple" selected>Couple</option>
+              <option value="family">Family with kids</option>
+              <option value="group">Group of friends</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Budget row -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="totalBudget">Total Budget (USD) <span class="required">*</span></label>
+            <input
+              type="number"
+              id="totalBudget"
+              name="totalBudget"
+              placeholder="e.g. 3000"
+              min="200"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label>Budget Style</label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="budgetStyle" value="budget" />
+                <span>Budget</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="budgetStyle" value="mid-range" checked />
+                <span>Mid-range</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="budgetStyle" value="luxury" />
+                <span>Luxury</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interests -->
+        <div class="form-group">
+          <label>Travel Interests</label>
+          <div class="checkbox-grid">
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Culture" checked />
+              <span>🏛 Culture</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Food" checked />
+              <span>🍜 Food</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Adventure" />
+              <span>🧗 Adventure</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Nature" />
+              <span>🌿 Nature</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Nightlife" />
+              <span>🎵 Nightlife</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Shopping" />
+              <span>🛍 Shopping</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="Relaxation" />
+              <span>🧘 Relaxation</span>
+            </label>
+            <label class="checkbox-option">
+              <input type="checkbox" name="interests" value="History" />
+              <span>📜 History</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Special requirements -->
+        <div class="form-group">
+          <label for="specialRequirements">Special Requirements <span class="optional">(optional)</span></label>
+          <textarea
+            id="specialRequirements"
+            name="specialRequirements"
+            rows="3"
+            placeholder="Dietary restrictions, mobility needs, traveling with young children, anniversary trip, first time visiting..."
+          ></textarea>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" id="submit-btn" class="btn-primary">
+          <span class="btn-text">Generate My Itinerary</span>
+          <span class="btn-icon">→</span>
+        </button>
+
+      </form>
+    </section>
+
+    <!-- =========================================================
+         LOADING PANEL — shown while agent is working
+    ========================================================== -->
+    <section id="progress-panel" class="panel progress-panel hidden">
+      <div class="panel-header">
+        <h2>AI Agent Working...</h2>
+        <p>Researching your destination, checking weather, calculating budget, and building your itinerary. This takes about 15–30 seconds.</p>
+      </div>
+      <div class="agent-thinking" id="agent-thinking">
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
+        <div class="thinking-dot"></div>
+      </div>
+    </section>
+
+    <!-- =========================================================
+         ITINERARY RESULT PANEL — shows the generated itinerary
+         Hidden until complete
+    ========================================================== -->
+    <section id="result-panel" class="panel result-panel hidden">
+
+      <!-- Trip header -->
+      <div id="itinerary-header" class="itinerary-header">
+        <!-- Injected by app.js -->
+      </div>
+
+      <!-- Info cards: weather + budget -->
+      <div class="info-cards" id="info-cards">
+        <!-- Injected by app.js -->
+      </div>
+
+      <!-- Day-by-day itinerary -->
+      <div id="days-container" class="days-container">
+        <!-- Injected by app.js -->
+      </div>
+
+      <!-- Extras: packing + booking -->
+      <div id="extras-container" class="extras-container">
+        <!-- Injected by app.js -->
+      </div>
+
+      <!-- Plan again button -->
+      <div class="plan-again-wrap">
+        <button id="plan-again-btn" class="btn-secondary">Plan Another Trip</button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Built with <a href="https://docs.anthropic.com" target="_blank">Claude API</a> · Agentic AI Learning Project</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
