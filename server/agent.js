@@ -37,7 +37,7 @@ export async function runTravelAgent(preferences, onProgress) {
   // Initialise the Gemini model with tool definitions
   // Gemini wraps function declarations inside a "tools" array
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-1.5-flash",
     systemInstruction: SYSTEM_PROMPT,
     tools: [{ functionDeclarations: TOOL_DEFINITIONS }],
     generationConfig: {
