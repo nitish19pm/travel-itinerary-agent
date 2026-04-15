@@ -77,7 +77,7 @@ export async function runTravelAgent(preferences, onProgress) {
     // Call the model with current message history + tools
     // ----------------------------------------------------------
     const response = await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
+      model: "llama-3.3-70b-versatile",
       messages,
       tools: GROQ_TOOLS,
       tool_choice: "auto",
@@ -147,7 +147,7 @@ export async function runTravelAgent(preferences, onProgress) {
     ];
 
     const synthesisResponse = await groq.chat.completions.create({
-      model: "llama-3.1-70b-versatile",
+      model: "llama-3.3-70b-versatile",
       messages: synthesisMessages,
       // No tools in synthesis phase — just JSON generation
       max_tokens: 8192,

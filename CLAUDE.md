@@ -11,7 +11,7 @@ ChaiNashta is an India-only AI travel planner that generates personalised, food-
 
 ## Tech Stack
 - **Backend:** Node.js + Express (ES modules, no TypeScript, no build step)
-- **AI:** Groq SDK (`groq-sdk`) with model `llama-3.1-70b-versatile`, two-phase: tool loop then JSON synthesis
+- **AI:** Groq SDK (`groq-sdk`) with model `llama-3.3-70b-versatile`, two-phase: short tool-loop prompt then separate JSON synthesis call
 - **Frontend:** Vanilla HTML/CSS/JS — no framework
 - **Deployment:** Vercel (auto-deploys on push to GitHub `main`)
 - **Env var required:** `GROQ_API_KEY`
