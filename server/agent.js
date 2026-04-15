@@ -77,7 +77,7 @@ export async function runTravelAgent(preferences, onProgress) {
     // Call the model with current message history + tools
     // ----------------------------------------------------------
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "llama3-groq-70b-8192-tool-use-preview",
       messages,
       tools: GROQ_TOOLS,
       tool_choice: "auto",
