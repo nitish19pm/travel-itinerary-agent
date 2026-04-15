@@ -1,94 +1,71 @@
 // =============================================================================
-// agent.js — The AI Agent Loop (Google Gemini version)
+// agent.js — The AI Agent Loop (Groq / Llama version)
 //
 // LEARNING NOTE — THIS IS THE MOST IMPORTANT FILE IN THE PROJECT
 //
 // This file implements the universal agentic AI pattern:
 //
-//   1. Send user request + tool definitions to Gemini
-//   2. Gemini responds: either with tool calls or a final answer
-//   3. If tool calls → execute them, add results to chat history, go to step 1
+//   1. Send user request + tool definitions to the model
+//   2. Model responds: either with tool calls or a final answer
+//   3. If tool calls → execute them, add results to message history, go to step 1
 //   4. If final answer → extract the result and return it
 //
-// Gemini uses a "chat session" model — history is managed by the SDK.
-// Tool calls come back as "functionCall" parts; results go back as
-// "functionResponse" parts. The loop pattern is identical to other LLMs.
+// Groq uses the OpenAI-compatible API format:
+//   - Tools defined as { type: "function", function: { name, description, parameters } }
+//   - Tool calls come back in message.tool_calls[]
+//   - Results go back as role: "tool" messages
 // =============================================================================
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { TOOL_DEFINITIONS, executeTool } from "./tools.js";
 import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts.js";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 // Maximum number of agent loop iterations (safety guard against infinite loops)
 const MAX_ITERATIONS = 10;
+
+// Convert our tool definitions to OpenAI/Groq format
+const GROQ_TOOLS = TOOL_DEFINITIONS.map((t) => ({
+  type: "function",
+  function: {
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters,
+  },
+}));
 
 // -----------------------------------------------------------------------------
 // runTravelAgent — the main agent function
 //
 // Parameters:
 //   preferences  — user's travel preferences from the form
-//   onProgress   — callback called at each agent step, streams to frontend via SSE
+//   onProgress   — callback called at each agent step
 //
 // Returns: parsed itinerary JSON object
 // -----------------------------------------------------------------------------
 export async function runTravelAgent(preferences, onProgress) {
-  // Initialise the Gemini model with tool definitions
-  // Gemini wraps function declarations inside a "tools" array
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash-latest",
-    systemInstruction: SYSTEM_PROMPT,
-    tools: [{ functionDeclarations: TOOL_DEFINITIONS }],
-    generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 8192,
-    },
-  });
-
-  // Start a chat session — Gemini manages conversation history internally
-  const chat = model.startChat();
-
   const userMessage = buildUserPrompt(preferences);
+
+  // Message history — appended to throughout the agent loop
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user",   content: userMessage },
+  ];
 
   onProgress({
     step: "start",
     message: `Starting travel agent for ${preferences.destination}...`,
   });
 
-  // Send the first user message to kick off the agent
-  let response = await chat.sendMessage(userMessage);
-
   let iteration = 0;
 
   // ============================================================
-  // THE AGENT LOOP — runs until Gemini stops calling tools
+  // THE AGENT LOOP — runs until the model stops calling tools
   // ============================================================
   while (iteration < MAX_ITERATIONS) {
     iteration++;
 
-    const candidate = response.candidates?.[0];
-    if (!candidate) throw new Error("No response candidate from Gemini");
-
-    const parts = candidate.content?.parts ?? [];
-
-    // Collect any function call parts in this response
-    const functionCalls = parts.filter((p) => p.functionCall);
-
-    // ----------------------------------------------------------
-    // If no function calls → Gemini is done, extract the answer
-    // ----------------------------------------------------------
-    if (functionCalls.length === 0) {
-      onProgress({ step: "complete", message: "Itinerary generated successfully!" });
-
-      const textPart = parts.find((p) => p.text);
-      if (!textPart) throw new Error("No text in Gemini final response");
-      return extractItinerary(textPart.text);
-    }
-
-    // ----------------------------------------------------------
-    // Gemini wants to call tools — execute each one and return results
-    // ----------------------------------------------------------
     onProgress({
       step: "thinking",
       message: iteration === 1
@@ -96,49 +73,77 @@ export async function runTravelAgent(preferences, onProgress) {
         : "Agent is reasoning with tool results...",
     });
 
-    const functionResponses = [];
+    // ----------------------------------------------------------
+    // Call the model with current message history + tools
+    // ----------------------------------------------------------
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      tools: GROQ_TOOLS,
+      tool_choice: "auto",
+      max_tokens: 8192,
+      temperature: 0.7,
+    });
 
-    for (const part of functionCalls) {
-      const { name, args } = part.functionCall;
+    const message = response.choices[0].message;
 
-      onProgress({
-        step: "tool_call",
-        message: getToolProgressMessage(name, args),
-        tool: name,
-        input: args,
-      });
+    // Add the model's response to history
+    messages.push(message);
 
-      try {
-        const result = await executeTool(name, args);
+    // ----------------------------------------------------------
+    // Check if the model wants to call tools
+    // ----------------------------------------------------------
+    if (message.tool_calls?.length) {
+      for (const toolCall of message.tool_calls) {
+        const toolName = toolCall.function.name;
+        const toolInput = JSON.parse(toolCall.function.arguments);
 
-        onProgress({ step: "tool_result", message: `Got ${name} data`, tool: name });
-
-        // Gemini expects tool results as "functionResponse" parts
-        functionResponses.push({
-          functionResponse: {
-            name,
-            response: { result },
-          },
+        onProgress({
+          step: "tool_call",
+          message: getToolProgressMessage(toolName, toolInput),
+          tool: toolName,
+          input: toolInput,
         });
-      } catch (err) {
-        functionResponses.push({
-          functionResponse: {
-            name,
-            response: { error: err.message },
-          },
-        });
+
+        try {
+          const result = await executeTool(toolName, toolInput);
+
+          onProgress({ step: "tool_result", message: `Got ${toolName} data`, tool: toolName });
+
+          // Add tool result to history as a "tool" role message
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          });
+        } catch (err) {
+          messages.push({
+            role: "tool",
+            tool_call_id: toolCall.id,
+            content: JSON.stringify({ error: err.message }),
+          });
+        }
       }
+
+      // Continue the loop — model will reason with the tool results
+      continue;
     }
 
-    // Send all tool results back to Gemini in one message — loop continues
-    response = await chat.sendMessage(functionResponses);
+    // ----------------------------------------------------------
+    // No tool calls → model is done, extract the final answer
+    // ----------------------------------------------------------
+    onProgress({ step: "complete", message: "Itinerary generated successfully!" });
+
+    const text = message.content;
+    if (!text) throw new Error("No text in model final response");
+    return extractItinerary(text);
   }
 
   throw new Error(`Agent exceeded maximum iterations (${MAX_ITERATIONS}). Something went wrong.`);
 }
 
 // -----------------------------------------------------------------------------
-// extractItinerary — parses Gemini's final text response into a JSON object
+// extractItinerary — parses the model's final text response into JSON
 // -----------------------------------------------------------------------------
 function extractItinerary(text) {
   let clean = text.trim();
