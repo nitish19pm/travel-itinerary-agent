@@ -42,7 +42,7 @@ body {
 
 /* ---- Header --------------------------------------------------------------- */
 .site-header {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #0ea5e9 100%);
+  background: linear-gradient(135deg, #92400e 0%, #d97706 50%, #f59e0b 100%);
   color: white;
   padding: 1.5rem 2rem;
   box-shadow: 0 2px 12px rgba(0,0,0,.2);
@@ -666,8 +666,42 @@ textarea { resize: vertical; }
 
 .plan-again-wrap {
   display: flex;
+  gap: 1rem;
   justify-content: center;
   padding-top: .5rem;
+  flex-wrap: wrap;
+}
+
+/* Inline (non-full-width) primary button */
+.btn-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .7rem 1.5rem;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: .95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-inline:hover { background: var(--primary-dark); }
+.btn-inline:disabled { background: var(--text-muted); cursor: not-allowed; }
+
+/* Edit / replan panel */
+.edit-panel {
+  border-top: 3px solid var(--primary);
+  background: #fffbeb;
+}
+
+.edit-form-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: .5rem;
 }
 
 /* ---- Error state ---------------------------------------------------------- */

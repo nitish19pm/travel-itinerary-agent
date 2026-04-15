@@ -1,5 +1,5 @@
 // =============================================================================
-// app.js — Frontend: form handling, fetch request, itinerary rendering
+// app.js — Frontend: form handling, fetch, replan feature, itinerary rendering
 // =============================================================================
 
 // ---- DOM references --------------------------------------------------------
@@ -8,7 +8,11 @@ const submitBtn     = document.getElementById("submit-btn");
 const formPanel     = document.getElementById("form-panel");
 const progressPanel = document.getElementById("progress-panel");
 const resultPanel   = document.getElementById("result-panel");
-const planAgainBtn  = document.getElementById("plan-again-btn");
+const editPanel     = document.getElementById("edit-panel");
+const editForm      = document.getElementById("edit-form");
+
+// Stores the last used preferences so the edit panel can pre-fill them
+let lastPreferences = null;
 
 // ---- Set default dates (trip starting in 30 days, 7-day duration) ----------
 (function setDefaultDates() {
@@ -21,14 +25,13 @@ const planAgainBtn  = document.getElementById("plan-again-btn");
   document.getElementById("returnDate").value     = fmt(ret);
 })();
 
-// ---- Form submission -------------------------------------------------------
+// ---- Main form submission --------------------------------------------------
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
+  const preferences = collectFormData(form, "interests");
+  if (!validateForm(preferences, form)) return;
 
-  const preferences = collectFormData();
-  if (!validateForm(preferences)) return;
-
-  // Disable button, show spinner panel
+  lastPreferences = preferences;
   submitBtn.disabled = true;
   submitBtn.querySelector(".btn-text").textContent = "Generating...";
   showPanel("progress");
@@ -37,8 +40,9 @@ form.addEventListener("submit", async (e) => {
     const { itinerary } = await fetchItinerary(preferences);
     renderItinerary(itinerary, preferences);
     showPanel("result");
+    attachResultButtons();
   } catch (err) {
-    showError(err.message || "Something went wrong. Please try again.");
+    showError(err.message || "Something went wrong. Please try again.", form);
     showPanel("form");
   } finally {
     submitBtn.disabled = false;
@@ -46,11 +50,71 @@ form.addEventListener("submit", async (e) => {
   }
 });
 
-// ---- Collect form data -----------------------------------------------------
-function collectFormData() {
-  const fd = new FormData(form);
+// ---- Edit form (replan) submission ----------------------------------------
+editForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const preferences = collectEditFormData();
+  if (!validateForm(preferences, editForm)) return;
+
+  lastPreferences = preferences;
+
+  const regenBtn = document.getElementById("regenerate-btn");
+  regenBtn.disabled = true;
+  regenBtn.querySelector(".btn-text").textContent = "Regenerating...";
+
+  // Hide edit panel, show spinner
+  editPanel.classList.add("hidden");
+  showPanel("progress");
+
+  try {
+    const { itinerary } = await fetchItinerary(preferences);
+    renderItinerary(itinerary, preferences);
+    showPanel("result");
+    attachResultButtons();
+  } catch (err) {
+    showError(err.message || "Something went wrong. Please try again.", editForm);
+    editPanel.classList.remove("hidden");
+    showPanel("result"); // keep result visible behind the edit panel
+  } finally {
+    regenBtn.disabled = false;
+    regenBtn.querySelector(".btn-text").textContent = "Regenerate Itinerary";
+  }
+});
+
+// ---- Attach result panel button listeners ----------------------------------
+// Called after every render so fresh DOM elements get listeners
+function attachResultButtons() {
+  const replanBtn   = document.getElementById("replan-btn");
+  const planAgainBtn = document.getElementById("plan-again-btn");
+
+  if (replanBtn) {
+    replanBtn.addEventListener("click", () => {
+      prefillEditForm(lastPreferences);
+      editPanel.classList.remove("hidden");
+      editPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
+
+  if (planAgainBtn) {
+    planAgainBtn.addEventListener("click", () => {
+      editPanel.classList.add("hidden");
+      showPanel("form");
+    });
+  }
+
+  const cancelBtn = document.getElementById("cancel-edit-btn");
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", () => {
+      editPanel.classList.add("hidden");
+    });
+  }
+}
+
+// ---- Collect data from the main form ---------------------------------------
+function collectFormData(formEl, interestsName) {
+  const fd = new FormData(formEl);
   const interests = Array.from(
-    document.querySelectorAll('input[name="interests"]:checked')
+    formEl.querySelectorAll(`input[name="${interestsName}"]:checked`)
   ).map((cb) => cb.value);
 
   return {
@@ -66,21 +130,70 @@ function collectFormData() {
   };
 }
 
+// ---- Collect data from the edit form (different field/radio names) ---------
+function collectEditFormData() {
+  const fd = new FormData(editForm);
+  const interests = Array.from(
+    editForm.querySelectorAll('input[name="edit-interests"]:checked')
+  ).map((cb) => cb.value);
+
+  return {
+    destination:         fd.get("destination")?.trim(),
+    departureDate:       fd.get("departureDate"),
+    returnDate:          fd.get("returnDate"),
+    travelers:           fd.get("travelers"),
+    totalBudget:         Number(fd.get("totalBudget")),
+    budgetStyle:         fd.get("edit-budgetStyle"),
+    interests,
+    groupType:           fd.get("groupType"),
+    specialRequirements: fd.get("specialRequirements")?.trim(),
+  };
+}
+
+// ---- Pre-fill the edit form with last preferences --------------------------
+function prefillEditForm(prefs) {
+  if (!prefs) return;
+
+  document.getElementById("edit-destination").value       = prefs.destination || "";
+  document.getElementById("edit-departureDate").value     = prefs.departureDate || "";
+  document.getElementById("edit-returnDate").value        = prefs.returnDate || "";
+  document.getElementById("edit-totalBudget").value       = prefs.totalBudget || "";
+  document.getElementById("edit-specialRequirements").value = prefs.specialRequirements || "";
+
+  // Select travelers
+  const travelersEl = document.getElementById("edit-travelers");
+  if (travelersEl) travelersEl.value = prefs.travelers || "2";
+
+  // Select groupType
+  const groupTypeEl = document.getElementById("edit-groupType");
+  if (groupTypeEl) groupTypeEl.value = prefs.groupType || "couple";
+
+  // Set budget style radio
+  editForm.querySelectorAll('input[name="edit-budgetStyle"]').forEach((radio) => {
+    radio.checked = radio.value === prefs.budgetStyle;
+  });
+
+  // Set interests checkboxes
+  editForm.querySelectorAll('input[name="edit-interests"]').forEach((cb) => {
+    cb.checked = (prefs.interests || []).includes(cb.value);
+  });
+}
+
 // ---- Validation ------------------------------------------------------------
-function validateForm(prefs) {
-  document.querySelectorAll(".error-message").forEach(el => el.remove());
+function validateForm(prefs, formEl) {
+  formEl.querySelectorAll(".error-message").forEach(el => el.remove());
 
   if (!prefs.destination) {
-    showError("Please enter a destination."); return false;
+    showError("Please enter a destination.", formEl); return false;
   }
   if (!prefs.departureDate || !prefs.returnDate) {
-    showError("Please select travel dates."); return false;
+    showError("Please select travel dates.", formEl); return false;
   }
   if (new Date(prefs.returnDate) <= new Date(prefs.departureDate)) {
-    showError("Return date must be after departure date."); return false;
+    showError("Return date must be after departure date.", formEl); return false;
   }
   if (!prefs.totalBudget || prefs.totalBudget < 200) {
-    showError("Please enter a budget of at least $200."); return false;
+    showError("Please enter a budget of at least $200.", formEl); return false;
   }
   return true;
 }
@@ -92,13 +205,8 @@ async function fetchItinerary(preferences) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(preferences),
   });
-
   const data = await res.json();
-
-  if (!res.ok) {
-    throw new Error(data.error || `Server error: ${res.status}`);
-  }
-
+  if (!res.ok) throw new Error(data.error || `Server error: ${res.status}`);
   return data;
 }
 
@@ -109,22 +217,6 @@ function showPanel(which) {
   resultPanel.classList.toggle("hidden",   which !== "result");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
-
-// ---- Plan again ------------------------------------------------------------
-planAgainBtn.addEventListener("click", () => {
-  // Reset result panel structure
-  resultPanel.innerHTML = `
-    <div id="itinerary-header" class="itinerary-header"></div>
-    <div class="info-cards" id="info-cards"></div>
-    <div id="days-container" class="days-container"></div>
-    <div id="extras-container" class="extras-container"></div>
-    <div class="plan-again-wrap">
-      <button id="plan-again-btn" class="btn-secondary">Plan Another Trip</button>
-    </div>
-  `;
-  document.getElementById("plan-again-btn").addEventListener("click", () => showPanel("form"));
-  showPanel("form");
-});
 
 // =============================================================================
 // ITINERARY RENDERING
@@ -137,7 +229,6 @@ function renderItinerary(data, preferences) {
   renderExtras(data);
 }
 
-// ---- Trip header -----------------------------------------------------------
 function renderHeader(data, preferences) {
   const days = Math.ceil(
     (new Date(preferences.returnDate) - new Date(preferences.departureDate)) / 86400000
@@ -158,7 +249,6 @@ function renderHeader(data, preferences) {
   `;
 }
 
-// ---- Weather + Budget info cards -------------------------------------------
 function renderInfoCards(data) {
   const weatherCard = `
     <div class="info-card">
@@ -186,9 +276,7 @@ function renderInfoCards(data) {
         budgetCard += `
           <div class="budget-bar-row">
             <span class="budget-bar-label">${capitalize(label)}</span>
-            <div class="budget-bar-track">
-              <div class="budget-bar-fill" style="width:${pct}%"></div>
-            </div>
+            <div class="budget-bar-track"><div class="budget-bar-fill" style="width:${pct}%"></div></div>
             <span class="budget-bar-amount">$${amount}</span>
           </div>`;
       }
@@ -197,11 +285,9 @@ function renderInfoCards(data) {
     if (bs.notes) budgetCard += `<p style="font-size:.8rem;color:var(--text-muted);margin-top:.75rem">${escapeHtml(bs.notes)}</p>`;
   }
   budgetCard += `</div>`;
-
   document.getElementById("info-cards").innerHTML = weatherCard + budgetCard;
 }
 
-// ---- Day cards -------------------------------------------------------------
 function renderDays(days) {
   const container = document.getElementById("days-container");
   if (!days?.length) { container.innerHTML = "<p>No days data available.</p>"; return; }
@@ -214,7 +300,6 @@ function renderDayCard(day) {
     { key: "afternoon", label: "Afternoon", icon: "⛅" },
     { key: "evening",   label: "Evening",   icon: "🌙" },
   ];
-
   const slotsHtml = slots.filter(s => day[s.key]).map(s => renderTimeSlot(day[s.key], s.label, s.icon)).join("");
   const tipsHtml = day.daily_tips?.length ? `
     <div class="day-tips">
@@ -252,7 +337,6 @@ function renderTimeSlot(slot, label, icon) {
     </div>`;
 }
 
-// ---- Extras ----------------------------------------------------------------
 function renderExtras(data) {
   const container = document.getElementById("extras-container");
   const cards = [];
@@ -264,7 +348,6 @@ function renderExtras(data) {
         <ul>${data.packing_suggestions.map(i => `<li>${escapeHtml(i)}</li>`).join("")}</ul>
       </div>`);
   }
-
   if (data.booking_priorities?.length) {
     cards.push(`
       <div class="extras-card">
@@ -272,7 +355,6 @@ function renderExtras(data) {
         <ul>${data.booking_priorities.map(i => `<li>${escapeHtml(i)}</li>`).join("")}</ul>
       </div>`);
   }
-
   if (data.local_phrases?.length) {
     const rows = data.local_phrases.map(p => `
       <tr>
@@ -289,17 +371,16 @@ function renderExtras(data) {
         </table>
       </div>`);
   }
-
   container.innerHTML = cards.join("");
 }
 
 // ---- Error display ---------------------------------------------------------
-function showError(message) {
-  document.querySelectorAll(".error-message").forEach(el => el.remove());
+function showError(message, formEl) {
+  formEl.querySelectorAll(".error-message").forEach(el => el.remove());
   const err = document.createElement("div");
   err.className = "error-message";
   err.textContent = message;
-  form.appendChild(err);
+  formEl.appendChild(err);
 }
 
 // ---- Utilities -------------------------------------------------------------
