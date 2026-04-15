@@ -18,7 +18,7 @@
 
 import Groq from "groq-sdk";
 import { TOOL_DEFINITIONS, executeTool } from "./tools.js";
-import { SYSTEM_PROMPT, buildUserPrompt } from "./prompts.js";
+import { SYSTEM_PROMPT, SYNTHESIS_PROMPT, buildUserPrompt } from "./prompts.js";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
@@ -77,7 +77,7 @@ export async function runTravelAgent(preferences, onProgress) {
     // Call the model with current message history + tools
     // ----------------------------------------------------------
     const response = await groq.chat.completions.create({
-      model: "llama3-groq-70b-8192-tool-use-preview",
+      model: "llama-3.1-70b-versatile",
       messages,
       tools: GROQ_TOOLS,
       tool_choice: "auto",
@@ -130,12 +130,34 @@ export async function runTravelAgent(preferences, onProgress) {
     }
 
     // ----------------------------------------------------------
-    // No tool calls → model is done, extract the final answer
+    // No tool calls → all tools have been called.
+    // PHASE 2: Make a separate call with the synthesis prompt + schema
+    // (no tools this time) to generate the final structured JSON.
+    // This keeps the tool-calling phase short and focused, which
+    // significantly improves Llama's tool-call reliability.
     // ----------------------------------------------------------
+    onProgress({ step: "thinking", message: "Building your itinerary..." });
+
+    // Build synthesis messages: replace system prompt with the full schema prompt,
+    // keep all the tool results in history so the model has all research data
+    const synthesisMessages = [
+      { role: "system", content: SYNTHESIS_PROMPT },
+      ...messages.slice(1), // drop original system prompt, keep user msg + tool results
+      { role: "user", content: "Now write the complete itinerary JSON using all the research above." },
+    ];
+
+    const synthesisResponse = await groq.chat.completions.create({
+      model: "llama-3.1-70b-versatile",
+      messages: synthesisMessages,
+      // No tools in synthesis phase — just JSON generation
+      max_tokens: 8192,
+      temperature: 0.3, // lower temp for more reliable JSON
+    });
+
     onProgress({ step: "complete", message: "Itinerary generated successfully!" });
 
-    const text = message.content;
-    if (!text) throw new Error("No text in model final response");
+    const text = synthesisResponse.choices[0].message.content;
+    if (!text) throw new Error("No text in model synthesis response");
     return extractItinerary(text);
   }
 
