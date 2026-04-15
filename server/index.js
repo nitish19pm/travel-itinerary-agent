@@ -38,9 +38,9 @@ app.post("/api/itinerary", async (req, res) => {
     });
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  if (!process.env.GROQ_API_KEY) {
     return res.status(500).json({
-      error: "GEMINI_API_KEY not configured. Add it to your environment variables.",
+      error: "GROQ_API_KEY not configured. Add it to your environment variables.",
     });
   }
 
@@ -67,7 +67,7 @@ app.post("/api/itinerary", async (req, res) => {
 app.get("/api/health", (_req, res) => {
   res.json({
     status: "ok",
-    hasApiKey: !!process.env.GEMINI_API_KEY,
+    hasApiKey: !!process.env.GROQ_API_KEY,
     timestamp: new Date().toISOString(),
   });
 });
@@ -78,7 +78,7 @@ app.get("/", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`\n🌍 Travel Itinerary Agent running at http://localhost:${PORT}`);
-  console.log(`   Gemini API Key: ${process.env.GEMINI_API_KEY ? "✓ configured" : "✗ MISSING"}`);
+  console.log(`   Groq API Key: ${process.env.GROQ_API_KEY ? "✓ configured" : "✗ MISSING"}`);
   console.log(`\n   Open your browser to http://localhost:${PORT}\n`);
 });
 
