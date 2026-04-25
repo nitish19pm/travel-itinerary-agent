@@ -20,8 +20,8 @@
   --text:         #1e293b;
   --text-muted:   #64748b;
   --border:       #e2e8f0;
-  --bg:           #f8fafc;
-  --surface:      #ffffff;
+  --bg:           #fdf6e3;
+  --surface:      #fffef9;
   --radius:       12px;
   --radius-sm:    8px;
   --shadow:       0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06);
@@ -32,7 +32,9 @@ html { font-size: 16px; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cg fill='none' stroke='%23d97706' stroke-opacity='0.07' stroke-width='1'%3E%3Cpolygon points='30,4 56,18 56,42 30,56 4,42 4,18'/%3E%3Cpolygon points='30,12 48,22 48,38 30,48 12,38 12,22'/%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 60px 60px;
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
